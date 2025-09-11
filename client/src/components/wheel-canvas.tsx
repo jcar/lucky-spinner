@@ -18,6 +18,7 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [rotation, setRotation] = useState(0);
   const [animationId, setAnimationId] = useState<number | null>(null);
+  const [frozenSegments, setFrozenSegments] = useState<Array<{name: string; occurrence: number; color: string; weight: number}>>([]);
 
   // Calculate segments with weighted sizing
   const segments = participants.map((participant, index) => ({
@@ -27,10 +28,15 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
   }));
 
   const totalWeight = segments.reduce((sum, segment) => sum + segment.weight, 0);
+  const frozenTotalWeight = frozenSegments.reduce((sum, segment) => sum + segment.weight, 0);
+
+  // Use frozen segments during spin, regular segments when not spinning
+  const displaySegments = isSpinning ? frozenSegments : segments;
+  const displayTotalWeight = isSpinning ? frozenTotalWeight : totalWeight;
 
   useEffect(() => {
     drawWheel();
-  }, [participants, rotation]);
+  }, [participants, rotation, isSpinning]);
 
   const drawWheel = () => {
     const canvas = canvasRef.current;
@@ -45,7 +51,7 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (segments.length === 0) {
+    if (displaySegments.length === 0) {
       // Draw empty wheel
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
@@ -64,8 +70,8 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
 
     let currentAngle = rotation;
 
-    segments.forEach((segment) => {
-      const segmentAngle = (segment.weight / totalWeight) * 2 * Math.PI;
+    displaySegments.forEach((segment) => {
+      const segmentAngle = (segment.weight / displayTotalWeight) * 2 * Math.PI;
 
       // Draw segment
       ctx.beginPath();
@@ -127,6 +133,9 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
   const spinWheel = () => {
     if (isSpinning || segments.length === 0) return;
 
+    // Freeze the current segments for this spin to ensure fairness
+    setFrozenSegments(segments);
+    
     onSpinStart();
 
     const spinDuration = 3000;
@@ -155,15 +164,16 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
       } else {
         setAnimationId(null);
         
-        // Calculate winner
+        // Calculate winner using the frozen segments to ensure fairness
         const normalizedRotation = (currentRotation % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
         const pointerAngle = (2 * Math.PI - normalizedRotation) % (2 * Math.PI);
         
         let currentAngle = 0;
-        let winner = segments[0];
+        let winner = frozenSegments[0];
+        const frozenTotalWeight = frozenSegments.reduce((sum, segment) => sum + segment.weight, 0);
 
-        for (const segment of segments) {
-          const segmentAngle = (segment.weight / totalWeight) * 2 * Math.PI;
+        for (const segment of frozenSegments) {
+          const segmentAngle = (segment.weight / frozenTotalWeight) * 2 * Math.PI;
           if (pointerAngle >= currentAngle && pointerAngle < currentAngle + segmentAngle) {
             winner = segment;
             break;
@@ -205,7 +215,7 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
       <div className="absolute -bottom-20 left-1/2 transform -translate-x-1/2">
         <button
           onClick={spinWheel}
-          disabled={isSpinning || segments.length === 0}
+          disabled={isSpinning || displaySegments.length === 0}
           className="bg-primary text-primary-foreground py-4 px-8 rounded-full text-xl font-bold shadow-lg hover:bg-primary/90 transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           data-testid="button-spin"
         >
