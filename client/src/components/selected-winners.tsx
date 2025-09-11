@@ -20,7 +20,7 @@ export default function SelectedWinners({ winners, remainingCount, onExport }: S
         Selected Winners
       </h2>
 
-      <div className="space-y-3 max-h-96 overflow-y-auto" data-testid="winners-list">
+      <div className="space-y-3" data-testid="winners-list">
         {winners.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <i className="fas fa-users text-4xl mb-3 opacity-50" />
