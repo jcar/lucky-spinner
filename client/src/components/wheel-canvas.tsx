@@ -19,6 +19,7 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
   const [rotation, setRotation] = useState(0);
   const [animationId, setAnimationId] = useState<number | null>(null);
   const [frozenSegments, setFrozenSegments] = useState<Array<{name: string; occurrence: number; color: string; weight: number}>>([]);
+  const [showFrozenSegments, setShowFrozenSegments] = useState(false);
 
   // Calculate segments with weighted sizing
   const segments = participants.map((participant, index) => ({
@@ -30,13 +31,13 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
   const totalWeight = segments.reduce((sum, segment) => sum + segment.weight, 0);
   const frozenTotalWeight = frozenSegments.reduce((sum, segment) => sum + segment.weight, 0);
 
-  // Use frozen segments during spin, regular segments when not spinning
-  const displaySegments = isSpinning ? frozenSegments : segments;
-  const displayTotalWeight = isSpinning ? frozenTotalWeight : totalWeight;
+  // Use frozen segments during spin and after spin completes (until next spin)
+  const displaySegments = (isSpinning || showFrozenSegments) ? frozenSegments : segments;
+  const displayTotalWeight = (isSpinning || showFrozenSegments) ? frozenTotalWeight : totalWeight;
 
   useEffect(() => {
     drawWheel();
-  }, [participants, rotation, isSpinning]);
+  }, [participants, rotation, isSpinning, showFrozenSegments]);
 
   const drawWheel = () => {
     const canvas = canvasRef.current;
@@ -133,8 +134,12 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
   const spinWheel = () => {
     if (isSpinning || segments.length === 0) return;
 
+    // Reset to show current participants when starting a new spin
+    setShowFrozenSegments(false);
+    
     // Freeze the current segments for this spin to ensure fairness
-    setFrozenSegments(segments);
+    const segmentsSnapshot = [...segments]; // Create a snapshot for this spin
+    setFrozenSegments(segmentsSnapshot);
     
     onSpinStart();
 
@@ -164,22 +169,40 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
       } else {
         setAnimationId(null);
         
-        // Calculate winner using the frozen segments to ensure fairness
+        // Calculate winner using the segments snapshot to ensure fairness
+        if (segmentsSnapshot.length === 0) {
+          console.error('No segments available for winner calculation');
+          return;
+        }
+        
+        // Pointer is at top (12 o'clock = 3π/2 in canvas coordinates)
+        // Segments start from rotation angle, so we need to find what segment is at the pointer
         const normalizedRotation = (currentRotation % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
-        const pointerAngle = (2 * Math.PI - normalizedRotation) % (2 * Math.PI);
+        // Pointer is at 3π/2, wheel segments start from normalizedRotation
+        // So we need to find which segment contains angle (3π/2 - normalizedRotation)
+        const pointerAngle = (3 * Math.PI / 2 - normalizedRotation + 2 * Math.PI) % (2 * Math.PI);
         
         let currentAngle = 0;
-        let winner = frozenSegments[0];
-        const frozenTotalWeight = frozenSegments.reduce((sum, segment) => sum + segment.weight, 0);
+        let winner = segmentsSnapshot[0];
+        const snapshotTotalWeight = segmentsSnapshot.reduce((sum, segment) => sum + segment.weight, 0);
 
-        for (const segment of frozenSegments) {
-          const segmentAngle = (segment.weight / frozenTotalWeight) * 2 * Math.PI;
+        for (const segment of segmentsSnapshot) {
+          const segmentAngle = (segment.weight / snapshotTotalWeight) * 2 * Math.PI;
           if (pointerAngle >= currentAngle && pointerAngle < currentAngle + segmentAngle) {
             winner = segment;
             break;
           }
           currentAngle += segmentAngle;
         }
+
+        // Safety check to ensure winner has a name
+        if (!winner || !winner.name) {
+          console.error('Invalid winner selected:', winner);
+          winner = segmentsSnapshot[0]; // Fallback to first segment
+        }
+
+        // Keep showing the frozen segments (with winner visible) until next spin
+        setShowFrozenSegments(true);
 
         onSpinComplete({
           winner: winner.name,
