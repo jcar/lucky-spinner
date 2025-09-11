@@ -200,20 +200,12 @@ export default function Home() {
               onSpinStart={() => setIsSpinning(true)}
             />
 
-            <div className="text-center">
-              <p className="text-muted-foreground">
-                {wheelParticipants.length === 0 
-                  ? "Upload an Excel file to start spinning!"
-                  : "Click the button to spin and select a winner!"
-                }
-              </p>
-              {isSpinning && (
-                <div className="mt-2 flex items-center justify-center text-accent">
-                  <i className="fas fa-spinner animate-spin mr-2" />
-                  Spinning...
-                </div>
-              )}
-            </div>
+            {isSpinning && (
+              <div className="text-center flex items-center justify-center text-accent">
+                <i className="fas fa-spinner animate-spin mr-2" />
+                Spinning...
+              </div>
+            )}
           </div>
 
           {/* Selected Winners */}
