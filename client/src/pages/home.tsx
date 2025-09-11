@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Participant, WheelParticipant, SpinResult, Session } from "@shared/schema";
+import { Participant, WheelParticipant, SpinResult } from "@shared/schema";
 import WheelCanvas from "@/components/wheel-canvas";
 import FileUpload from "@/components/file-upload";
 import SelectedWinners from "@/components/selected-winners";
@@ -13,66 +11,41 @@ const COLORS = [
   "#f59e0b", "#10b981", "#6366f1", "#f43f5e"
 ];
 
+interface Winner {
+  name: string;
+  occurrence: number;
+  selectedAt: string;
+}
+
 export default function Home() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const queryClient = useQueryClient();
+  const [originalParticipants, setOriginalParticipants] = useState<Participant[]>([]);
+  const [selectedWinners, setSelectedWinners] = useState<Winner[]>([]);
   const { toast } = useToast();
 
-  // Get current session data
-  const { data: session, refetch: refetchSession } = useQuery({
-    queryKey: ["/api/sessions", sessionId],
-    enabled: !!sessionId,
-  });
-
-  // Create session mutation
-  const createSessionMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/sessions"),
-    onSuccess: async (response) => {
-      const session: Session = await response.json();
-      setSessionId(session.id);
-      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
-    },
-  });
-
-  // Select winner mutation
-  const selectWinnerMutation = useMutation({
-    mutationFn: (winner: string) => 
-      apiRequest("POST", `/api/sessions/${sessionId}/select-winner`, { winner }),
-    onSuccess: () => {
-      refetchSession();
-      setIsSpinning(false);
-    },
-    onError: (error) => {
-      setIsSpinning(false);
-      toast({
-        title: "Error selecting winner",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Reset session mutation
-  const resetSessionMutation = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/sessions/${sessionId}/reset`),
-    onSuccess: () => {
-      refetchSession();
-      toast({
-        title: "Wheel reset",
-        description: "All participants have been restored",
-      });
-    },
-  });
-
-  const handleUploadSuccess = async (uploadedParticipants: Participant[]) => {
+  const handleUploadSuccess = (uploadedParticipants: Participant[]) => {
     setParticipants(uploadedParticipants);
-    await createSessionMutation.mutateAsync();
+    setOriginalParticipants(uploadedParticipants);
+    setSelectedWinners([]); // Reset winners when new data is uploaded
   };
 
   const handleSpinComplete = (result: SpinResult) => {
-    selectWinnerMutation.mutate(result.winner);
+    const winner = participants.find(p => p.name === result.winner);
+    if (winner) {
+      // Add to winners list
+      const newWinner: Winner = {
+        name: winner.name,
+        occurrence: winner.occurrence,
+        selectedAt: new Date().toISOString()
+      };
+      setSelectedWinners(prev => [...prev, newWinner]);
+      
+      // Remove winner from remaining participants
+      setParticipants(prev => prev.filter(p => p.name !== result.winner));
+    }
+    
+    setIsSpinning(false);
     toast({
       title: "Winner Selected!",
       description: `🎉 ${result.winner} has been selected!`,
@@ -80,16 +53,20 @@ export default function Home() {
   };
 
   const handleReset = () => {
-    resetSessionMutation.mutate();
+    setParticipants(originalParticipants);
+    setSelectedWinners([]);
+    toast({
+      title: "Wheel reset",
+      description: "All participants have been restored",
+    });
   };
 
   const handleExport = () => {
-    if (!session) return;
+    if (selectedWinners.length === 0) return;
 
-    const selectedWinners = JSON.parse(session.selectedWinners);
     const csvContent = "data:text/csv;charset=utf-8," +
       "Name,Original Occurrence,Selected At\n" +
-      selectedWinners.map((winner: any) => 
+      selectedWinners.map((winner: Winner) => 
         `${winner.name},${winner.occurrence},${winner.selectedAt}`
       ).join("\n");
 
@@ -103,14 +80,10 @@ export default function Home() {
   };
 
   // Prepare wheel participants with colors
-  const wheelParticipants: WheelParticipant[] = session 
-    ? JSON.parse(session.currentData).map((participant: Participant, index: number) => ({
-        ...participant,
-        color: COLORS[index % COLORS.length]
-      }))
-    : [];
-
-  const selectedWinners = session ? JSON.parse(session.selectedWinners) : [];
+  const wheelParticipants: WheelParticipant[] = participants.map((participant: Participant, index: number) => ({
+    ...participant,
+    color: COLORS[index % COLORS.length]
+  }));
 
   return (
     <div className="min-h-screen bg-background">
@@ -176,16 +149,15 @@ export default function Home() {
             </div>
 
             {/* Control Buttons */}
-            {sessionId && (
+            {participants.length > 0 && (
               <div className="space-y-3">
                 <button
                   onClick={handleReset}
-                  disabled={resetSessionMutation.isPending}
-                  className="w-full bg-destructive text-destructive-foreground py-3 px-4 rounded-lg font-medium hover:bg-destructive/90 transition-colors flex items-center justify-center disabled:opacity-50"
+                  className="w-full bg-destructive text-destructive-foreground py-3 px-4 rounded-lg font-medium hover:bg-destructive/90 transition-colors flex items-center justify-center"
                   data-testid="button-reset"
                 >
                   <i className="fas fa-redo mr-2" />
-                  {resetSessionMutation.isPending ? "Resetting..." : "Reset Wheel"}
+                  Reset Wheel
                 </button>
               </div>
             )}

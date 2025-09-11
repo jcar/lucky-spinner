@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Participant } from "@shared/schema";
+import * as XLSX from "xlsx";
 
 interface FileUploadProps {
   onUploadSuccess: (participants: Participant[]) => void;
@@ -26,25 +26,42 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     setIsUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      // Read file as array buffer
+      const arrayBuffer = await file.arrayBuffer();
+      
+      // Parse Excel file
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Upload failed");
+      if (!data || data.length < 2) {
+        throw new Error("Invalid file format. Expected at least 2 rows (header + data)");
       }
 
-      const data = await response.json();
-      onUploadSuccess(data.participants);
+      const participants: Participant[] = [];
+      // Skip header row, process data rows
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        if (row[0] && row[1]) {
+          const name = String(row[0]).trim();
+          const occurrence = parseInt(String(row[1])) || 1;
+          
+          if (name) {
+            participants.push({
+              id: crypto.randomUUID(),
+              name,
+              occurrence
+            });
+          }
+        }
+      }
+
+      onUploadSuccess(participants);
       
       toast({
         title: "Upload successful",
-        description: `Loaded ${data.participants.length} participants`,
+        description: `Loaded ${participants.length} participants`,
       });
     } catch (error) {
       console.error("Upload error:", error);
