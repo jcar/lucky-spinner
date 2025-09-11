@@ -86,7 +86,13 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
 
       ctx.save();
       ctx.translate(textX, textY);
-      ctx.rotate(textAngle + Math.PI / 2);
+      // Adjust rotation to make text readable and follow the slice curve
+      let textRotation = textAngle;
+      // If text would be upside down, rotate it 180 degrees to keep it readable
+      if (textAngle > Math.PI / 2 && textAngle < 3 * Math.PI / 2) {
+        textRotation += Math.PI;
+      }
+      ctx.rotate(textRotation);
       ctx.fillStyle = "#ffffff";
       ctx.font = "bold 14px Inter";
       ctx.textAlign = "center";
