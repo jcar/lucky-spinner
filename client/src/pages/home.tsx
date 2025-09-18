@@ -1,10 +1,14 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 import { Participant, WheelParticipant, SpinResult } from "@shared/schema";
 import WheelCanvas from "@/components/wheel-canvas";
 import FileUpload from "@/components/file-upload";
 import ManualDataInput from "@/components/manual-data-input";
 import SelectedWinners from "@/components/selected-winners";
+import AdSense from "@/components/adsense";
+import MobileMenu from "@/components/mobile-menu";
+import { analytics } from "@/components/analytics";
 
 const COLORS = [
   "#ef4444", "#f97316", "#eab308", "#22c55e", 
@@ -30,12 +34,14 @@ export default function Home() {
     setParticipants(uploadedParticipants);
     setOriginalParticipants(uploadedParticipants);
     setSelectedWinners([]); // Reset winners when new data is uploaded
+    analytics.trackFileUpload(uploadedParticipants.length);
   };
 
   const handleManualDataSuccess = (manualParticipants: Participant[]) => {
     setParticipants(manualParticipants);
     setOriginalParticipants(manualParticipants);
     setSelectedWinners([]); // Reset winners when new data is applied
+    analytics.trackManualEntry(manualParticipants.length);
   };
 
   const handleSpinComplete = (result: SpinResult) => {
@@ -63,6 +69,7 @@ export default function Home() {
   const handleReset = () => {
     setParticipants(originalParticipants);
     setSelectedWinners([]);
+    analytics.trackReset();
     toast({
       title: "Wheel reset",
       description: "All participants have been restored",
@@ -85,6 +92,8 @@ export default function Home() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    analytics.trackExportResults(selectedWinners.length);
   };
 
   // Prepare wheel participants with colors
@@ -105,18 +114,47 @@ export default function Home() {
               </div>
               <h1 className="text-2xl font-bold text-primary">Lucky Spinner</h1>
             </div>
-            <div className="text-sm text-muted-foreground">
-              Interactive Wheel of Fortune
+            <div className="flex items-center space-x-4">
+              <nav className="hidden md:flex space-x-6">
+                <Link href="/" className="text-foreground font-medium">
+                  Home
+                </Link>
+                <Link href="/about" className="text-muted-foreground hover:text-foreground transition-colors">
+                  About
+                </Link>
+                <Link href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">
+                  Privacy
+                </Link>
+                <Link href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">
+                  Terms
+                </Link>
+                <Link href="/contact" className="text-muted-foreground hover:text-foreground transition-colors">
+                  Contact
+                </Link>
+              </nav>
+              <div className="text-sm text-muted-foreground hidden lg:block">
+                Interactive Wheel of Fortune
+              </div>
+              <MobileMenu currentPath="/" />
             </div>
           </div>
         </div>
       </header>
 
       <div className="container mx-auto px-6 py-4">
+        {/* Top Banner Ad */}
+        <div className="mb-6">
+          <AdSense 
+            adSlot="1234567890"
+            adFormat="horizontal"
+            className="w-full max-w-4xl mx-auto"
+          />
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 min-h-[calc(100vh-160px)]">
           
           {/* Control Panel */}
-          <div className="lg:col-span-1 space-y-4">
+          <div className="lg:col-span-1 space-y-4 order-2 lg:order-1">
             {/* Input Mode Toggle */}
             <div className="bg-card rounded-lg p-4 shadow-lg border border-border">
               <div className="flex items-center space-x-1 bg-muted p-1 rounded-md">
@@ -194,6 +232,13 @@ export default function Home() {
               )}
             </div>
 
+            {/* Sidebar Ad */}
+            <AdSense 
+              adSlot="2345678901"
+              adFormat="rectangle"
+              className="w-full"
+            />
+
             {/* Control Buttons */}
             {participants.length > 0 && (
               <div className="space-y-3">
@@ -210,12 +255,16 @@ export default function Home() {
           </div>
 
           {/* Wheel Section */}
-          <div className="lg:col-span-2 flex flex-col items-center justify-start space-y-6 pt-4">
+          <div className="lg:col-span-2 flex flex-col items-center justify-start space-y-6 pt-4 order-1 lg:order-2">
             <WheelCanvas
               participants={wheelParticipants}
               onSpinComplete={handleSpinComplete}
               isSpinning={isSpinning}
-              onSpinStart={() => setIsSpinning(true)}
+              onSpinStart={() => {
+                setIsSpinning(true);
+                const hasWeights = wheelParticipants.some(p => p.occurrence > 1);
+                analytics.trackSpinWheel(wheelParticipants.length, hasWeights);
+              }}
             />
 
             {isSpinning && (
@@ -227,21 +276,81 @@ export default function Home() {
           </div>
 
           {/* Selected Winners */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-4 order-3 lg:order-3">
             <SelectedWinners
               winners={selectedWinners}
               remainingCount={wheelParticipants.length}
               onExport={handleExport}
             />
+            
+            {/* Sidebar Ad 2 */}
+            <AdSense 
+              adSlot="3456789012"
+              adFormat="vertical"
+              className="w-full"
+            />
           </div>
+        </div>
+        
+        {/* Bottom Banner Ad */}
+        <div className="mt-8 mb-6">
+          <AdSense 
+            adSlot="4567890123"
+            adFormat="horizontal"
+            className="w-full max-w-4xl mx-auto"
+          />
         </div>
       </div>
 
       {/* Footer */}
       <footer className="bg-card border-t border-border mt-12">
-        <div className="container mx-auto px-6 py-4">
-          <div className="text-center text-sm text-muted-foreground">
-            <p>Upload an Excel file or manually enter participant data to get started</p>
+        <div className="container mx-auto px-6 py-8">
+          <div className="grid md:grid-cols-4 gap-6">
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                  <i className="fas fa-dice text-primary-foreground text-sm" />
+                </div>
+                <span className="font-semibold">Lucky Spinner</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Fair and fun random selection tool for any occasion.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-3">Features</h4>
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li>Interactive Wheel</li>
+                <li>Manual Data Entry</li>
+                <li>Excel File Upload</li>
+                <li>Winner Tracking</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-3">Legal</h4>
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li><Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
+                <li><Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
+                <li><Link href="/contact" className="hover:text-foreground transition-colors">Contact Us</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-3">Connect</h4>
+              <div className="flex space-x-3">
+                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <i className="fab fa-twitter" />
+                </a>
+                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <i className="fab fa-facebook" />
+                </a>
+                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <i className="fab fa-linkedin" />
+                </a>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-border mt-6 pt-6 text-center text-sm text-muted-foreground">
+            <p>&copy; 2024 Lucky Spinner. All rights reserved.</p>
           </div>
         </div>
       </footer>
