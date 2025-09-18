@@ -3,6 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Participant, WheelParticipant, SpinResult } from "@shared/schema";
 import WheelCanvas from "@/components/wheel-canvas";
 import FileUpload from "@/components/file-upload";
+import ManualDataInput from "@/components/manual-data-input";
 import SelectedWinners from "@/components/selected-winners";
 
 const COLORS = [
@@ -22,12 +23,19 @@ export default function Home() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [originalParticipants, setOriginalParticipants] = useState<Participant[]>([]);
   const [selectedWinners, setSelectedWinners] = useState<Winner[]>([]);
+  const [inputMode, setInputMode] = useState<'upload' | 'manual'>('upload');
   const { toast } = useToast();
 
   const handleUploadSuccess = (uploadedParticipants: Participant[]) => {
     setParticipants(uploadedParticipants);
     setOriginalParticipants(uploadedParticipants);
     setSelectedWinners([]); // Reset winners when new data is uploaded
+  };
+
+  const handleManualDataSuccess = (manualParticipants: Participant[]) => {
+    setParticipants(manualParticipants);
+    setOriginalParticipants(manualParticipants);
+    setSelectedWinners([]); // Reset winners when new data is applied
   };
 
   const handleSpinComplete = (result: SpinResult) => {
@@ -104,12 +112,50 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 min-h-[calc(100vh-200px)]">
+      <div className="container mx-auto px-6 py-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 min-h-[calc(100vh-160px)]">
           
           {/* Control Panel */}
-          <div className="lg:col-span-1 space-y-6">
-            <FileUpload onUploadSuccess={handleUploadSuccess} />
+          <div className="lg:col-span-1 space-y-4">
+            {/* Input Mode Toggle */}
+            <div className="bg-card rounded-lg p-4 shadow-lg border border-border">
+              <div className="flex items-center space-x-1 bg-muted p-1 rounded-md">
+                <button
+                  onClick={() => setInputMode('upload')}
+                  className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors flex items-center justify-center ${
+                    inputMode === 'upload'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  data-testid="toggle-upload-mode"
+                >
+                  <i className="fas fa-upload mr-2" />
+                  Upload File
+                </button>
+                <button
+                  onClick={() => setInputMode('manual')}
+                  className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors flex items-center justify-center ${
+                    inputMode === 'manual'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  data-testid="toggle-manual-mode"
+                >
+                  <i className="fas fa-keyboard mr-2" />
+                  Manual Entry
+                </button>
+              </div>
+            </div>
+
+            {/* Input Component */}
+            {inputMode === 'upload' ? (
+              <FileUpload onUploadSuccess={handleUploadSuccess} />
+            ) : (
+              <ManualDataInput 
+                onDataSuccess={handleManualDataSuccess} 
+                existingParticipants={participants}
+              />
+            )}
 
             {/* Loaded Data Preview */}
             <div className="bg-card rounded-lg p-6 shadow-lg border border-border">
@@ -164,7 +210,7 @@ export default function Home() {
           </div>
 
           {/* Wheel Section */}
-          <div className="lg:col-span-2 flex flex-col items-center justify-center space-y-8">
+          <div className="lg:col-span-2 flex flex-col items-center justify-start space-y-6 pt-4">
             <WheelCanvas
               participants={wheelParticipants}
               onSpinComplete={handleSpinComplete}
@@ -195,7 +241,7 @@ export default function Home() {
       <footer className="bg-card border-t border-border mt-12">
         <div className="container mx-auto px-6 py-4">
           <div className="text-center text-sm text-muted-foreground">
-            <p>Upload your Excel file with names and occurrences to get started</p>
+            <p>Upload an Excel file or manually enter participant data to get started</p>
           </div>
         </div>
       </footer>

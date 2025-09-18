@@ -235,7 +235,7 @@ export default function WheelCanvas({ participants, onSpinComplete, isSpinning, 
       </div>
 
       {/* Spin button */}
-      <div className="absolute -bottom-20 left-1/2 transform -translate-x-1/2">
+      <div className="absolute -bottom-32 left-1/2 transform -translate-x-1/2">
         <button
           onClick={spinWheel}
           disabled={isSpinning || displaySegments.length === 0}
